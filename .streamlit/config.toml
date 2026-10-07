@@ -1,0 +1,19 @@
+# Streamlit's own theming API -- recolors NATIVE widgets (buttons, sliders,
+# sidebar background, focus rings) to match the ProteomIQ brand palette.
+# Values must match the :root CSS vars in src/app.py (single source of
+# truth is the brand spec: navy #14213D, blue #2A7BCB, purple #7B5CD6,
+# background #F5F7FA) -- kept in sync by hand since Streamlit's theme.toml
+# can't read CSS variables.
+[theme]
+primaryColor = "#7B5CD6"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#F5F7FA"
+textColor = "#14213D"
+font = "sans serif"
+
+# Hides the "Deploy" button + hamburger dev menu that appear in local
+# `streamlit run` -- internal dev tooling with no relevance to a researcher
+# using the finished app, and one of the biggest visual tells that this is
+# "someone's local script" rather than a real, finished tool.
+[client]
+toolbarMode = "minimal"

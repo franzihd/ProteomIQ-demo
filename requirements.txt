@@ -1,0 +1,13 @@
+# CPU-only torch: the Space has no GPU, and the default CUDA wheel is ~2 GB
+# of unused libraries. Versions pinned to what the app was validated with.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0+cpu
+transformers==5.8.0
+streamlit==1.58.0
+anthropic==0.111.0
+h5py==3.16.0
+pandas==3.0.2
+numpy==2.4.4
+matplotlib==3.11.0
+adjusttext==1.4.0
+tqdm
