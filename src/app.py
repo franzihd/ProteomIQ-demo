@@ -41,7 +41,12 @@ REQUIRED_FILES = [
 # to refuse to start the way a missing checkpoint or embeddings file is.
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 ICON_PATH = ASSETS_DIR / "icon.png"
-FAVICON_PATH = ASSETS_DIR / "favicon.png"  # pre-resized 256x256 copy of ICON_PATH -- see _load_favicon
+FAVICON_PATH = ASSETS_DIR / "favicon.png"  # 256x256 crop of the magnifier from final_logo.png -- see _load_favicon
+# Same file, served from the public demo repo. Used on Streamlit Community
+# Cloud, where a local page_icon gets a relative /media/... URL that the
+# outer *.streamlit.app page (the app itself runs in an iframe) can't
+# resolve, so the browser tab falls back to Streamlit's red crown.
+FAVICON_URL = "https://raw.githubusercontent.com/franzihd/ProteomIQ-demo/main/src/assets/favicon.png"
 LOGO_PATH = ASSETS_DIR / "logo.jpg"
 FINAL_LOGO_PATH = ASSETS_DIR / "final_logo.png"  # the ProteomIQ logo (magnifier + wordmark + tagline)
 # final_logo.png with its large transparent margins cropped off (and
@@ -70,6 +75,9 @@ def _load_favicon():
     which sidesteps the issue entirely. Falls back to None (Streamlit's own
     default icon) rather than an emoji if the asset is missing -- no emoji
     anywhere in the UI, including edge-case fallbacks."""
+    # Community Cloud checks repos out under /mount/src/<repo>.
+    if Path(__file__).resolve().as_posix().startswith("/mount/src/"):
+        return FAVICON_URL
     if FAVICON_PATH.exists():
         return str(FAVICON_PATH)
     return None
