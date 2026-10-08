@@ -37,30 +37,26 @@ The folder [`data/test_abundance_matrix/`](data/test_abundance_matrix/) contains
 tumor samples for each of the nine CPTAC cancer types. To use one, open the file on
 GitHub, click **Download raw file**, and upload it in the app's sidebar via **Upload**.
 
-| File | Cancer type | Proteins in file | Searchable proteins |
-|---|---|---:|---:|
-| `11LU013.csv` (default example) | Lung adenocarcinoma (LUAD) | 10,804 | 9,089 |
-| `11LU016.csv` | Lung adenocarcinoma (LUAD) | 10,743 | 9,053 |
-| `LSCC_C3L-01663.csv` | Lung squamous cell carcinoma (LSCC) | 11,508 | 9,572 |
-| `LSCC_C3N-02426.csv` | Lung squamous cell carcinoma (LSCC) | 11,486 | 9,530 |
-| `BRCA_01BR032.csv` | Breast invasive carcinoma (BRCA) | 10,662 | 8,882 |
-| `BRCA_11BR053.csv` | Breast invasive carcinoma (BRCA) | 11,172 | 9,248 |
-| `CCRCC_C3L-00418.csv` | Clear cell renal cell carcinoma (CCRCC) | 9,537 | 8,150 |
-| `CCRCC_C3N-00494.csv` | Clear cell renal cell carcinoma (CCRCC) | 8,978 | 7,723 |
-| `GBM_C3L-01154.csv` | Glioblastoma (GBM) | 11,195 | 9,262 |
-| `GBM_C3N-02255.csv` | Glioblastoma (GBM) | 10,943 | 9,145 |
-| `HNSCC_C3L-04025.csv` | Head and neck squamous cell carcinoma (HNSCC) | 9,800 | 8,432 |
-| `HNSCC_C3N-03045.csv` | Head and neck squamous cell carcinoma (HNSCC) | 9,825 | 8,452 |
-| `OV_02OV015.csv` | Ovarian serous carcinoma (OV) | 8,614 | 7,443 |
-| `OV_26OV009.csv` | Ovarian serous carcinoma (OV) | 8,630 | 7,485 |
-| `PDAC_C3L-00598.csv` | Pancreatic ductal adenocarcinoma (PDAC) | 9,567 | 8,337 |
-| `PDAC_C3L-01689.csv` | Pancreatic ductal adenocarcinoma (PDAC) | 8,850 | 7,750 |
-| `UCEC_C3L-00356.csv` | Uterine corpus endometrial carcinoma (UCEC) | 10,062 | 8,613 |
-| `UCEC_C3N-00836.csv` | Uterine corpus endometrial carcinoma (UCEC) | 9,958 | 8,518 |
-
-*Searchable proteins* are those that could be mapped to the model's reference protein
-set; gene names that occur more than once in a file, or that are not in the reference
-set, are skipped.
+| File | Cancer type |
+|---|---|
+| `11LU013.csv` (default example) | Lung adenocarcinoma (LUAD) |
+| `11LU016.csv` | Lung adenocarcinoma (LUAD) |
+| `LSCC_C3L-01663.csv` | Lung squamous cell carcinoma (LSCC) |
+| `LSCC_C3N-02426.csv` | Lung squamous cell carcinoma (LSCC) |
+| `BRCA_01BR032.csv` | Breast invasive carcinoma (BRCA) |
+| `BRCA_11BR053.csv` | Breast invasive carcinoma (BRCA) |
+| `CCRCC_C3L-00418.csv` | Clear cell renal cell carcinoma (CCRCC) |
+| `CCRCC_C3N-00494.csv` | Clear cell renal cell carcinoma (CCRCC) |
+| `GBM_C3L-01154.csv` | Glioblastoma (GBM) |
+| `GBM_C3N-02255.csv` | Glioblastoma (GBM) |
+| `HNSCC_C3L-04025.csv` | Head and neck squamous cell carcinoma (HNSCC) |
+| `HNSCC_C3N-03045.csv` | Head and neck squamous cell carcinoma (HNSCC) |
+| `OV_02OV015.csv` | Ovarian serous carcinoma (OV) |
+| `OV_26OV009.csv` | Ovarian serous carcinoma (OV) |
+| `PDAC_C3L-00598.csv` | Pancreatic ductal adenocarcinoma (PDAC) |
+| `PDAC_C3L-01689.csv` | Pancreatic ductal adenocarcinoma (PDAC) |
+| `UCEC_C3L-00356.csv` | Uterine corpus endometrial carcinoma (UCEC) |
+| `UCEC_C3N-00836.csv` | Uterine corpus endometrial carcinoma (UCEC) |
 
 The samples are the measured abundance values of single CPTAC patients (Clinical
 Proteomic Tumor Analysis Consortium), with missing values removed.
