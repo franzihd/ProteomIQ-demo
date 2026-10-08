@@ -1,4 +1,5 @@
 import base64
+import html
 import math
 import os
 import sys
@@ -42,6 +43,11 @@ ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 ICON_PATH = ASSETS_DIR / "icon.png"
 FAVICON_PATH = ASSETS_DIR / "favicon.png"  # pre-resized 256x256 copy of ICON_PATH -- see _load_favicon
 LOGO_PATH = ASSETS_DIR / "logo.jpg"
+FINAL_LOGO_PATH = ASSETS_DIR / "final_logo.png"  # the ProteomIQ logo (magnifier + wordmark + tagline)
+# final_logo.png with its large transparent margins cropped off (and
+# downscaled to 1200px wide), so the header can show the logo large without
+# wasting vertical space. Regenerate from final_logo.png if the logo changes.
+LOGO_HEADER_PATH = ASSETS_DIR / "final_logo_header.png"
 
 # Brand palette (single source of truth, also used by the CSS :root vars
 # below, so the matplotlib rank plot doesn't clash with the rest of the
@@ -69,46 +75,62 @@ def _load_favicon():
     return None
 
 
-def _load_logo_b64():
-    """Base64-embedded wordmark for the header. Streamlit has no built-in
+def _load_logo_data_uri():
+    """Data-URI-embedded wordmark for the header. Streamlit has no built-in
     static-asset serving, so embedding as a data URI inside custom HTML is
     the standard way to show a local image without a separate file server.
-    Returns None (not an empty string) if the asset is missing, so callers
-    can fall back to a plain-text title instead of a broken <img> tag."""
-    try:
-        with open(LOGO_PATH, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    except Exception:
-        return None
+    Prefers the cropped header PNG, then the uncropped final_logo.png, then
+    the old logo.jpg.
+    Returns None if neither asset exists, so callers can fall back to a
+    plain-text title instead of a broken <img> tag."""
+    for path, mime in ((LOGO_HEADER_PATH, "image/png"), (FINAL_LOGO_PATH, "image/png"), (LOGO_PATH, "image/jpeg")):
+        try:
+            with open(path, "rb") as f:
+                return f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
+        except Exception:
+            continue
+    return None
 
 
-def render_brand_header():
-    """Logo above the hero text -- shared by the normal header and the
-    early missing-data-files error path so both stay visually consistent.
-    Sits directly on the page background with just margin around it
-    (no bordered/shadowed card), deliberately modest in size so it never
-    competes with the main product headline. Falls back to a plain text
-    title if the logo asset isn't present -- no icon/emoji, per the
-    no-decorative-icons design rule."""
-    logo_b64 = _load_logo_b64()
-    if logo_b64:
-        st.markdown(
-            f'<div class="logo-simple"><img class="logo-img" '
-            f'src="data:image/jpeg;base64,{logo_b64}" alt="ProteomIQ"></div>',
-            unsafe_allow_html=True,
-        )
+WORKFLOW_STEPS = ("Load sample", "Search", "Inspect results", "Interpret")
+
+
+def render_brand_header(step_states=None):
+    """Application header: the ProteomIQ wordmark as the visual anchor on the
+    left and, once the app is running, a compact 4-step workflow indicator
+    on the right (load -> search -> inspect -> interpret). Shared by the
+    normal header and the early missing-data-files error path (which passes
+    no step_states, so only the logo shows). Falls back to a plain text
+    title if no logo asset is present -- no icon/emoji."""
+    logo_uri = _load_logo_data_uri()
+    if logo_uri:
+        brand = f'<img class="brand-wordmark" src="{logo_uri}" alt="ProteomIQ — proteins meet language">'
     else:
-        st.markdown('<div class="hero-fallback-title">ProteomIQ</div>', unsafe_allow_html=True)
+        brand = '<div class="brand-fallback">ProteomIQ</div>'
+
+    steps_html = ""
+    if step_states:
+        items = []
+        for i, (label, state) in enumerate(zip(WORKFLOW_STEPS, step_states), start=1):
+            num = "✓" if state == "done" else str(i)
+            optional = '<span class="step-optional">optional</span>' if i == len(WORKFLOW_STEPS) else ""
+            items.append(
+                f'<li class="step step-{state}"><span class="step-num">{num}</span>'
+                f'<span class="step-label">{label}{optional}</span></li>'
+            )
+        steps_html = f'<ol class="workflow" aria-label="Workflow">{"".join(items)}</ol>'
+
+    st.markdown(f'<div class="app-header">{brand}{steps_html}</div>', unsafe_allow_html=True)
 
 
-def render_section_header(title: str, subtitle: str = ""):
-    """One consistent section-header pattern (bold title + small muted
-    subtitle) used for every content section -- Protein Search, Results,
-    Chat -- instead of the old numbered step-badge treatment, so the page
-    reads as one coherent application rather than a linear wizard."""
+def render_section_header(title: str, subtitle: str = "", eyebrow: str = ""):
+    """One consistent section-header pattern (optional small uppercase
+    eyebrow, bold title, small muted subtitle) used for every content
+    section, so the page reads as one coherent application."""
+    eyebrow_html = f'<div class="section-eyebrow">{eyebrow}</div>' if eyebrow else ""
     sub_html = f'<div class="section-sub">{subtitle}</div>' if subtitle else ""
     st.markdown(
-        f'<div class="section-header"><div class="section-title">{title}</div>{sub_html}</div>',
+        f'<div class="section-header">{eyebrow_html}<div class="section-title">{title}</div>{sub_html}</div>',
         unsafe_allow_html=True,
     )
 
@@ -128,167 +150,405 @@ st.markdown("""
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 /* Reinforce Inter on native form controls specifically -- inputs/buttons/
    selects/textareas often keep the browser's own UI font by default even
-   when a page-wide font-family is set, since form-control typography isn't
-   always inherited the same way as regular text. */
+   when a page-wide font-family is set. */
 input, textarea, button, select,
 [data-testid="stSidebar"], [data-testid="stExpander"], [data-testid="stMarkdownContainer"] {
     font-family: 'Inter', sans-serif;
 }
 
-/* Brand palette. Semantic convention (kept consistent throughout): blue =
-   protein/proteomics, purple = language/query/semantic-search, navy =
-   neutral structure (headings, main UI). Gradients are deliberately used
-   sparingly -- small accents (buttons, thin bars) only, not large dominant
-   boxes -- so most of the interface stays white / very light gray. */
+/* Brand palette + design tokens. Semantic convention (kept consistent
+   throughout): blue = protein / sample abundance / biological data,
+   purple = language / semantic similarity / AI, navy = structure,
+   headings, primary text, light gray = backgrounds / secondary UI.
+   One radius scale, one border color, one shadow -- reused everywhere. */
 :root {
     --navy-900: #14213D;
     --blue-600: #2A7BCB;
+    --blue-50: #EEF5FC;
     --violet-600: #7B5CD6;
+    --violet-700: #6847C4;
+    --violet-50: #F4F0FD;
     --brand-100: #F5F7FA;
     --ink: #14213D;
     --muted: #5B6477;
+    --subtle: #8A93A6;
     --card-bg: #ffffff;
     --card-border: #E4E7ED;
+    --border-strong: #CDD3DE;
+    --track: #EDF0F5;
+    --radius-sm: 6px;
+    --radius: 10px;
+    --shadow-sm: 0 1px 2px rgba(20, 33, 61, 0.05);
     --chat-user-bg: #F3EEFC;
     --chat-user-border: #E7DDF8;
     --chat-assistant-bg: #F5F8FC;
     --chat-assistant-border: #E3E8F0;
 }
 
-/* Reduce Streamlit's own default top padding. */
-[data-testid="stMainBlockContainer"] { padding-top: 1.75rem !important; }
-
-/* Logo -- a compact brand mark, deliberately modest in size so it never
-   competes with the main product headline below it (req: "logo must not
-   compete with the main product headline"). */
-.logo-simple { margin: 0 0 0.75rem 0; }
-.logo-img { height: 70px; width: auto; display: block; }
-.hero-fallback-title { font-size: 1.1rem; font-weight: 700; color: var(--ink); margin: 0 0 0.5rem 0; }
-
-/* Hero -- the entry point of a search application: one large, confident
-   headline (this IS the product, not marketing copy), a small muted
-   supporting line, and a thin blue->purple accent line underneath -- the
-   only gradient/decorative element on the page. */
-.hero { margin: 0 0 1.25rem 0; max-width: 40rem; }
-.hero h1 {
-    margin: 0 0 0.4rem 0; font-size: 2.3rem; font-weight: 700;
-    color: var(--ink); line-height: 1.15; letter-spacing: -0.01em;
-}
-.hero p { margin: 0; font-size: 0.98rem; color: var(--muted); line-height: 1.5; }
-.hero-accent {
-    width: 2.75rem; height: 3px; border-radius: 2px; margin-top: 0.85rem;
-    background: linear-gradient(90deg, var(--blue-600), var(--violet-600));
+/* Main workspace: capped width so very wide monitors don't stretch rows
+   into unreadable lines, centered, with Streamlit's top padding reduced. */
+[data-testid="stMainBlockContainer"] {
+    padding-top: 1.5rem !important;
+    padding-left: 2.5rem !important;
+    padding-right: 2.5rem !important;
+    max-width: 1560px;
+    margin: 0 auto;
 }
 
-.minimal-empty-title { font-size: 0.95rem; font-weight: 700; color: var(--ink); margin: 1.1rem 0 0.15rem 0; }
-.minimal-empty-hint { font-size: 0.85rem; color: var(--muted); }
-
-/* Reusable section header -- one consistent pattern for every content
-   section (Protein Search, Results, Chat) instead of numbered step
-   badges, so the page reads as one coherent application rather than a
-   linear onboarding wizard. */
-.section-header { margin: 0 0 0.85rem 0; }
-.section-title { font-size: 1.1rem; font-weight: 700; color: var(--ink); margin: 0 0 0.15rem 0; }
-.section-sub { font-size: 0.83rem; color: var(--muted); }
-
-/* Results -- structured rows with a subtle bottom-border separator, not
-   individual bordered/padded cards around every protein. */
-.result-row-item {
-    display: flex; align-items: center; gap: 0.9rem;
-    padding: 0.6rem 0.05rem;
+/* ---------- Header: wordmark (visual anchor) + workflow indicator ---------- */
+.app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 1rem 2rem;
+    padding: 0.35rem 0 1.15rem 0;
+    margin-bottom: 1.5rem;
     border-bottom: 1px solid var(--card-border);
 }
-.result-rank { font-size: 0.78rem; color: var(--muted); width: 1.6rem; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.result-gene { font-weight: 700; font-size: 0.95rem; color: var(--ink); min-width: 5rem; flex-shrink: 0; }
-.result-metric { flex: 1; min-width: 8rem; }
-.result-metric-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
-.result-metric-bar-track { background: #eef0f6; border-radius: 4px; height: 0.4rem; overflow: hidden; margin-top: 0.12rem; }
-.result-metric-bar-fill { height: 100%; border-radius: 4px; }
-.result-metric-value { font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
+.brand-wordmark { height: clamp(56px, 5.6vw, 80px); width: auto; display: block; }
+.brand-fallback { font-size: 2rem; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
 
-.callout {
-    background: var(--brand-100); border-left: 3px solid var(--violet-600);
-    border-radius: 8px; padding: 1rem 1.2rem; color: var(--ink); line-height: 1.55;
+.workflow {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem;
+    list-style: none; margin: 0; padding: 0;
+}
+.workflow .step {
+    display: flex; align-items: center; gap: 0.45rem;
+    font-size: 0.8rem; color: var(--subtle); white-space: nowrap;
+}
+.workflow .step + .step::before {
+    content: ""; width: 1.4rem; height: 1px; background: var(--border-strong);
+    margin-right: 0.35rem;
+}
+.workflow .step-num {
+    width: 1.35rem; height: 1.35rem; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 700;
+    border: 1px solid var(--border-strong); color: var(--subtle); background: #fff;
+}
+.workflow .step-done { color: var(--ink); }
+.workflow .step-done .step-num { background: var(--navy-900); border-color: var(--navy-900); color: #fff; }
+.workflow .step-current { color: var(--ink); font-weight: 600; }
+.workflow .step-current .step-num { border-color: var(--violet-600); color: var(--violet-600); background: var(--violet-50); }
+.workflow .step-optional { margin-left: 0.3rem; font-size: 0.68rem; font-weight: 400; color: var(--subtle); }
+
+/* ---------- Empty state (no sample loaded yet) ---------- */
+.hero { margin: 0.5rem 0 1.5rem 0; max-width: 44rem; }
+.hero h1 {
+    font-family: 'Inter', sans-serif !important;
+    margin: 0 0 0.5rem 0; padding: 0 !important; font-size: 1.9rem; font-weight: 700;
+    color: var(--ink); line-height: 1.2; letter-spacing: -0.015em;
+}
+[data-testid="stMarkdownContainer"] .hero p { margin: 0; font-size: 1rem; color: var(--muted); line-height: 1.55; }
+.start-card {
+    max-width: 44rem; margin: 0 0 1rem 0; padding: 1.1rem 1.25rem;
+    background: var(--brand-100); border: 1px solid var(--card-border);
+    border-left: 3px solid var(--blue-600); border-radius: var(--radius);
+}
+.start-title { font-size: 0.98rem; font-weight: 700; color: var(--ink); margin-bottom: 0.2rem; }
+.start-hint { font-size: 0.87rem; color: var(--muted); line-height: 1.5; }
+.start-hint code { font-size: 0.82rem; background: #fff; border: 1px solid var(--card-border); border-radius: 4px; padding: 0 0.3rem; color: var(--ink); }
+
+/* ---------- Section headers ---------- */
+.section-header { margin: 0 0 0.8rem 0; }
+.section-eyebrow {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--violet-600); margin-bottom: 0.2rem;
+}
+.section-title { font-size: 1.15rem; font-weight: 700; color: var(--ink); margin: 0 0 0.15rem 0; letter-spacing: -0.005em; }
+.section-sub { font-size: 0.85rem; color: var(--muted); line-height: 1.45; }
+
+/* ---------- Search bar: [ large input ][ Search ] ---------- */
+.st-key-search_bar { gap: 0.6rem !important; }
+.st-key-main_query [data-baseweb="input"] {
+    min-height: 48px;
+    border-radius: var(--radius) !important;
+    border: 1px solid var(--border-strong) !important;
+    background: #fff !important;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.st-key-main_query [data-baseweb="input"] > div { background: transparent !important; }
+.st-key-main_query [data-baseweb="input"]:focus-within {
+    border-color: var(--violet-600) !important;
+    box-shadow: 0 0 0 3px rgba(123, 92, 214, 0.15) !important;
+}
+.st-key-main_query input {
+    font-size: 1rem !important;
+    padding: 0 1rem !important;
+    color: var(--ink) !important;
+}
+.st-key-search_btn button {
+    min-height: 48px; min-width: 7.5rem;
+    border-radius: var(--radius) !important;
+}
+.search-examples {
+    margin: 0.55rem 0 0 0; font-size: 0.78rem; color: var(--subtle); line-height: 1.6;
+}
+.search-examples .ex { color: var(--muted); }
+.search-examples .ex + .ex::before { content: "·"; margin: 0 0.45rem; color: var(--border-strong); }
+.search-spacer { height: 1.6rem; }
+
+/* ---------- Results header ---------- */
+.results-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin: 0 0 0.15rem 0; }
+.results-head .section-title { margin: 0; }
+.count-badge {
+    font-size: 0.75rem; font-weight: 600; color: var(--violet-700);
+    background: var(--violet-50); border: 1px solid #E4DBF8;
+    border-radius: 999px; padding: 0.08rem 0.55rem;
+}
+.results-sub { font-size: 0.85rem; color: var(--muted); margin: 0 0 0.75rem 0; }
+.results-sub .q { color: var(--ink); font-weight: 600; }
+
+/* ---------- Result list: one coherent row per protein ----------
+   Each protein is a single <details> element: the summary row holds rank,
+   gene, relevance and abundance; opening it reveals the UniProt function
+   text inside the same bordered row, so the description visibly belongs
+   to its protein. The list is a container-query context so the row grid
+   can reflow when the center column gets narrow, independent of the
+   overall viewport width. */
+.result-list {
+    container-type: inline-size;
+    border: 1px solid var(--card-border); border-radius: var(--radius);
+    background: var(--card-bg); box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+.result-grid {
+    display: grid;
+    grid-template-columns: 2rem minmax(5.5rem, 0.8fr) minmax(9rem, 1.35fr) minmax(8rem, 1fr) 1rem;
+    align-items: center; column-gap: 1.1rem;
+}
+.result-colhead {
+    padding: 0.55rem 1rem; background: var(--brand-100);
+    border-bottom: 1px solid var(--card-border);
+    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--subtle);
+}
+.result-colhead .h-rel { color: var(--violet-600); }
+.result-colhead .h-ab { color: var(--blue-600); }
+.result-colhead .h-unit { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--subtle); }
+
+.result { border-bottom: 1px solid var(--card-border); }
+.result:last-child { border-bottom: none; }
+.result > summary {
+    list-style: none; cursor: pointer;
+    padding: 0.62rem 1rem;
+    transition: background 0.12s ease;
+}
+.result > summary::-webkit-details-marker { display: none; }
+.result > summary:hover { background: #FAFBFD; }
+.result[open] > summary { background: var(--brand-100); }
+.result.no-detail > summary { cursor: default; }
+.result.no-detail > summary:hover { background: transparent; }
+
+.r-rank { font-size: 0.78rem; color: var(--subtle); font-variant-numeric: tabular-nums; }
+.r-gene { font-weight: 700; font-size: 0.97rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.r-metric { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.r-bar { flex: 1; height: 6px; border-radius: 999px; background: var(--track); overflow: hidden; min-width: 2.5rem; }
+.r-fill { display: block; height: 100%; border-radius: 999px; }
+.r-rel .r-fill { background: var(--violet-600); }
+.r-ab .r-bar { height: 4px; }
+.r-ab .r-fill { background: var(--blue-600); }
+.r-val { font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 3.1rem; text-align: right; }
+.r-rel .r-val { font-weight: 600; color: var(--violet-700); }
+.r-ab .r-val { color: var(--muted); }
+.r-inline-label { display: none; }
+.r-chev {
+    width: 0.5rem; height: 0.5rem; justify-self: end;
+    border-right: 1.5px solid var(--subtle); border-bottom: 1.5px solid var(--subtle);
+    transform: rotate(-45deg); transition: transform 0.15s ease;
+}
+.result[open] .r-chev { transform: rotate(45deg); }
+
+.result-detail {
+    padding: 0.1rem 1rem 0.85rem calc(1rem + 2rem + 1.1rem);
+    background: var(--brand-100);
+}
+.detail-label {
+    font-size: 0.66rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--blue-600); margin-bottom: 0.25rem;
+}
+.result-detail p { margin: 0; font-size: 0.84rem; line-height: 1.55; color: var(--ink); max-width: 62rem; }
+
+/* Narrow center column: gene stays on the first line, the two metrics
+   drop below it (each with its own small inline label). */
+@container (max-width: 560px) {
+    .result-grid { grid-template-columns: 1.6rem 1fr 1rem; row-gap: 0.4rem; }
+    .result-colhead { display: none; }
+    .r-rank { grid-row: 1; grid-column: 1; }
+    .r-gene { grid-row: 1; grid-column: 2; }
+    .r-chev { grid-row: 1; grid-column: 3; }
+    .r-rel { grid-row: 2; grid-column: 2 / 4; }
+    .r-ab { grid-row: 3; grid-column: 2 / 4; }
+    .r-inline-label { display: inline; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtle); width: 4.8rem; flex-shrink: 0; }
+    .result-detail { padding-left: calc(1rem + 1.6rem + 1.1rem); }
 }
 
-/* --- Sidebar: a compact control panel -- small uppercase section labels
-   (SAMPLE, RESULTS) instead of icon-heavy headings. --- */
-.sidebar-section-label {
-    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
-    color: var(--muted); text-transform: uppercase;
-    margin: 1rem 0 0.35rem 0;
+/* ---------- Abundance-profile plot card ---------- */
+.st-key-plot_card {
+    border: 1px solid var(--card-border); border-radius: var(--radius);
+    background: #fff; box-shadow: var(--shadow-sm);
+    padding: 1rem 1.1rem 0.6rem 1.1rem;
 }
-.dataset-status { margin: 0.4rem 0 0.6rem 0; }
-.dataset-status-label { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
-.dataset-status-count { font-size: 0.78rem; color: var(--muted); }
+.section-gap { height: 1.75rem; }
 
+/* ---------- AI interpretation: call-to-action card (before) ---------- */
+.st-key-ai_cta {
+    border: 1px solid var(--card-border); border-radius: var(--radius);
+    background: linear-gradient(180deg, var(--violet-50) 0%, #ffffff 70%);
+    box-shadow: var(--shadow-sm);
+    padding: 1.15rem 1.2rem 1rem 1.2rem;
+}
+.ai-title { font-size: 1.08rem; font-weight: 700; color: var(--ink); margin: 0 0 0.35rem 0; }
+[data-testid="stMarkdownContainer"] p.ai-text { font-size: 0.86rem; color: var(--muted); line-height: 1.55; margin: 0 0 0.35rem 0; }
+.ai-points { margin: 0.2rem 0 0.4rem 0; padding: 0; list-style: none; }
+[data-testid="stMarkdownContainer"] .ai-points li { margin: 0; font-size: 0.82rem; color: var(--ink); padding: 0.18rem 0 0.18rem 1.1rem; position: relative; line-height: 1.45; }
+.ai-points li::before {
+    content: ""; position: absolute; left: 0.1rem; top: 0.62rem;
+    width: 0.38rem; height: 0.38rem; border-radius: 50%; background: var(--violet-600);
+}
+.ai-footnote { font-size: 0.74rem; color: var(--subtle); margin-top: 0.15rem; line-height: 1.45; }
+.ai-badge {
+    display: inline-block; vertical-align: middle; margin-left: 0.45rem;
+    font-size: 0.68rem; font-weight: 600; color: var(--violet-700);
+    background: var(--violet-50); border: 1px solid #E4DBF8; border-radius: 999px; padding: 0.05rem 0.5rem;
+}
+
+/* ---------- AI interpretation: chat panel (after) ---------- */
+.st-key-chat_panel {
+    background: #fff;
+    border: 1px solid var(--card-border);
+    border-top: 3px solid var(--violet-600);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 1rem 1.1rem 0.75rem 1.1rem;
+}
+
+/* ---------- Responsiveness of the results | AI two-column layout ----------
+   Streamlit only stacks columns below a ~640px viewport; between that and
+   a comfortable desktop width the AI column would get squeezed into an
+   unreadably narrow strip. Giving both columns a minimum width and
+   letting the row wrap moves the AI column below the results instead.
+   Scoped via :has() to only the block that contains the AI column. */
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-ai_cta),
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-chat_panel) {
+    flex-wrap: wrap;
+}
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-ai_cta) > [data-testid="stColumn"]:first-child,
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-chat_panel) > [data-testid="stColumn"]:first-child {
+    min-width: min(100%, 22rem);
+}
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-ai_cta) > [data-testid="stColumn"]:last-child,
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-chat_panel) > [data-testid="stColumn"]:last-child {
+    min-width: min(100%, 16rem);
+}
+
+/* ---------- Sidebar: the analysis control panel ---------- */
 [data-testid="stSidebar"] {
     background: var(--brand-100);
     border-right: 1px solid var(--card-border);
 }
-[data-testid="stSidebar"] [data-testid="stMainBlockContainer"] { padding-top: 1.5rem !important; }
+[data-testid="stSidebarUserContent"] { padding-top: 0.5rem; }
+.sidebar-section-label {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+    color: var(--muted); text-transform: uppercase;
+    margin: 1.1rem 0 0.4rem 0;
+}
+.sidebar-section-label.first { margin-top: 0; }
+.sidebar-or {
+    display: flex; align-items: center; gap: 0.6rem;
+    font-size: 0.72rem; color: var(--subtle); margin: 0.1rem 0 0.1rem 0;
+}
+.sidebar-or::before, .sidebar-or::after { content: ""; flex: 1; height: 1px; background: var(--card-border); }
+
+.dataset-card {
+    background: #fff; border: 1px solid var(--card-border);
+    border-left: 3px solid var(--blue-600);
+    border-radius: var(--radius); padding: 0.75rem 0.85rem 0.8rem 0.85rem;
+    box-shadow: var(--shadow-sm);
+}
+.dc-eyebrow {
+    display: flex; align-items: center; gap: 0.4rem;
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--blue-600);
+}
+.dc-eyebrow .dot { width: 0.42rem; height: 0.42rem; border-radius: 50%; background: var(--blue-600); }
+.dc-name {
+    font-size: 0.9rem; font-weight: 600; color: var(--ink); margin: 0.25rem 0 0.6rem 0;
+    line-height: 1.35; overflow-wrap: anywhere;
+}
+.dc-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.dc-stat.main { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 0.4rem; }
+.dc-stat.main b { font-size: 1.15rem; }
+.dc-stat.main span { font-size: 0.75rem; }
+.dc-stat { background: var(--brand-100); border-radius: var(--radius-sm); padding: 0.4rem 0.45rem; min-width: 0; }
+.dc-stat b { display: block; font-size: 0.92rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dc-stat span { display: block; font-size: 0.68rem; color: var(--muted); line-height: 1.25; }
+.dc-stat.main b { color: var(--blue-600); }
+.dc-note { font-size: 0.7rem; color: var(--subtle); line-height: 1.45; margin-top: 0.55rem; }
 
 [data-testid="stFileUploaderDropzone"] {
     background: #ffffff !important;
-    border: 1px solid var(--card-border) !important;
-    border-radius: 8px !important;
+    border: 1px dashed var(--border-strong) !important;
+    border-radius: var(--radius) !important;
     padding: 0.6rem !important;
 }
 
-[data-testid="stSidebar"] button, [data-testid="stButton"] button {
+/* ---------- Native widget polish (buttons, expanders, alerts) ----------
+   Scoped by Streamlit's per-kind data-testids, so primary and secondary
+   buttons keep distinct looks. white-space: nowrap on every button label
+   is what guarantees "Search" etc. never wrap onto two lines. */
+[data-testid^="stBaseButton"] { white-space: nowrap; }
+[data-testid^="stBaseButton"] p { white-space: nowrap; }
+[data-testid="stBaseButton-secondary"],
+[data-testid="stBaseButton-secondaryFormSubmit"] {
     border-radius: 8px !important;
-    border: 1px solid var(--card-border) !important;
+    border: 1px solid var(--border-strong) !important;
+    background: #fff !important;
     color: var(--ink) !important;
-    transition: border-color 0.15s ease, color 0.15s ease;
+    font-weight: 500;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
-[data-testid="stSidebar"] button:hover, [data-testid="stButton"] button:hover {
+[data-testid="stBaseButton-secondary"]:hover,
+[data-testid="stBaseButton-secondaryFormSubmit"]:hover {
     border-color: var(--violet-600) !important;
-    color: var(--violet-600) !important;
+    color: var(--violet-700) !important;
+    background: var(--violet-50) !important;
+}
+[data-testid="stBaseButton-primary"] {
+    border-radius: 8px !important;
+    background: var(--violet-600) !important;
+    border: 1px solid var(--violet-600) !important;
+    color: #fff !important;
+    font-weight: 600;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+[data-testid="stBaseButton-primary"]:hover {
+    background: var(--violet-700) !important;
+    border-color: var(--violet-700) !important;
+}
+[data-testid="stBaseButton-primary"]:disabled {
+    background: var(--track) !important; border-color: var(--card-border) !important; color: var(--subtle) !important;
 }
 
 [data-testid="stAlertContainer"] {
-    background: var(--brand-100) !important;
-    border-left: 3px solid var(--blue-600) !important;
-    border-radius: 8px !important;
+    border-radius: var(--radius) !important;
 }
 
-[data-testid="stExpander"] {
+[data-testid="stExpander"] details {
     border: 1px solid var(--card-border) !important;
-    border-radius: 8px !important;
+    border-radius: var(--radius) !important;
+    background: #fff;
     overflow: hidden;
 }
+[data-testid="stExpander"] summary { font-size: 0.86rem; font-weight: 500; color: var(--ink); }
+[data-testid="stExpander"] summary:hover { color: var(--violet-700); }
+[data-testid="stExpander"] summary:hover svg { fill: var(--violet-700); }
+[data-testid="stSidebar"] [data-testid="stExpander"] p { font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
+[data-testid="stSidebar"] [data-testid="stExpander"] code { font-size: 0.78rem; }
+.st-key-howto { max-width: 44rem; }
 
-/* Main search box -- scoped to just this input via Streamlit's st-key-*
-   class (st.text_input(..., key="main_query")), so the sidebar upload /
-   new-search-in-chat inputs are untouched. Larger type, brand-colored
-   focus ring -- meant to be the visually dominant control on the page. */
-.st-key-main_query [data-testid="stTextInput"] input {
-    font-size: 1.02rem !important;
-    padding: 0.8rem 1rem !important;
-    border-radius: 8px !important;
-    border: 1px solid var(--card-border) !important;
+.app-footer {
+    margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--card-border);
+    font-size: 0.76rem; color: var(--subtle); line-height: 1.5;
 }
-.st-key-main_query [data-testid="stTextInput"] input:focus {
-    border-color: var(--violet-600) !important;
-    box-shadow: 0 0 0 1px var(--violet-600) !important;
-}
-
-/* Chat panel -- a bordered section beside the results, restrained (thin
-   neutral border, no gradient fill) rather than a heavy colored box.
-   Targets the real st.container(key="chat_panel") wrapper (the
-   `st-key-chat_panel` class Streamlit adds for a keyed container) -- NOT a
-   raw-HTML div, which doesn't actually wrap subsequent Streamlit elements
-   the way it looks like it should (see the comment at the container's
-   Python call site for why). */
-.st-key-chat_panel {
-    background: #fbfbfe;
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 1rem 1.2rem 0.6rem 1.2rem;
-}
-/* Scoped to just the chat panel's own heading -- Protein Search / Results
-   keep the normal .section-title size untouched. */
-.st-key-chat_panel .section-title { font-size: 19px; font-weight: 600; }
 
 /* ============================================================
    CHAT -- one consolidated section (bubbles + typography + input).
@@ -464,35 +724,67 @@ input, textarea, button, select,
 """, unsafe_allow_html=True)
 
 
-def render_result_row(rank: int, gene: str, cos_sim: float, percentile: float, annotation: str | None):
-    """One structured row per protein -- rank, gene identifier, relevance,
-    abundance -- separated by a thin bottom border, not an individually
-    bordered/padded card. Protein description stays available via the
-    expander (annotation) without cluttering the row itself."""
+def _ordinal(n: int) -> str:
+    if 10 <= n % 100 <= 20:
+        return f"{n}th"
+    return f"{n}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th') }"
+
+
+def _result_item_html(rank: int, gene: str, cos_sim: float, percentile: float, annotation: str | None) -> str:
+    """One protein as one coherent row: rank, gene identifier, semantic
+    relevance (purple, primary), abundance (blue, secondary). Rendered as a
+    native <details> element, so clicking the row reveals the UniProt
+    function text inside the same row instead of a separate widget."""
     # cos_sim is a cosine similarity in roughly [-1, 1]; clamp to [0, 1] for
     # the bar width so a negative (irrelevant) score doesn't render as a
     # negative-width bar.
     relevance_pct = max(0.0, min(1.0, (cos_sim + 1) / 2)) * 100
     abundance_pct = percentile * 100
-    st.markdown(f"""
-    <div class="result-row-item">
-      <span class="result-rank">{rank:02d}</span>
-      <span class="result-gene">{gene}</span>
-      <div class="result-metric">
-        <div class="result-metric-label">Relevance</div>
-        <div class="result-metric-bar-track"><div class="result-metric-bar-fill" style="width:{relevance_pct:.1f}%; background:var(--violet-600);"></div></div>
-        <div class="result-metric-value">{cos_sim:.3f} cosine similarity</div>
-      </div>
-      <div class="result-metric">
-        <div class="result-metric-label">Abundance</div>
-        <div class="result-metric-bar-track"><div class="result-metric-bar-fill" style="width:{abundance_pct:.1f}%; background:var(--blue-600);"></div></div>
-        <div class="result-metric-value">{abundance_pct:.0f}th percentile</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-    if annotation:
-        with st.expander(f"{gene} — protein description", expanded=False):
-            st.caption(annotation)
+    gene_html = html.escape(gene)
+    summary = (
+        f'<summary class="result-grid">'
+        f'<span class="r-rank">{rank:02d}</span>'
+        f'<span class="r-gene" title="{gene_html}">{gene_html}</span>'
+        f'<span class="r-metric r-rel" title="Cosine similarity between this protein and your query">'
+        f'<span class="r-inline-label">Relevance</span>'
+        f'<span class="r-bar"><span class="r-fill" style="width:{relevance_pct:.1f}%"></span></span>'
+        f'<span class="r-val">{cos_sim:.3f}</span></span>'
+        f'<span class="r-metric r-ab" title="Abundance percentile within this sample">'
+        f'<span class="r-inline-label">Abundance</span>'
+        f'<span class="r-bar"><span class="r-fill" style="width:{abundance_pct:.1f}%"></span></span>'
+        f'<span class="r-val">{_ordinal(round(abundance_pct))} pct</span></span>'
+        f'<span class="{"r-chev" if annotation else ""}"></span>'
+        f'</summary>'
+    )
+    if not annotation:
+        return f'<details class="result no-detail">{summary}</details>'
+    # Annotations are stored as "GENE: function text" -- the gene is already
+    # the row's own heading, so don't repeat it in the detail panel.
+    text = annotation
+    if text.startswith(f"{gene}:"):
+        text = text[len(gene) + 1:].strip()
+    return (
+        f'<details class="result">{summary}'
+        f'<div class="result-detail"><div class="detail-label">UniProt function</div>'
+        f'<p>{html.escape(text)}</p></div></details>'
+    )
+
+
+def render_result_list(rows):
+    """The ranked result list as one bordered card: a column-header row
+    (which also serves as the legend for what purple vs. blue means),
+    followed by one row per protein. rows = [(rank, gene, cos_sim,
+    percentile, annotation), ...]. Rendered as a single HTML block, which is
+    also much faster than one Streamlit element per row."""
+    head = (
+        '<div class="result-grid result-colhead">'
+        '<span>#</span><span>Protein</span>'
+        '<span class="h-rel">Semantic relevance <span class="h-unit">· cosine</span></span>'
+        '<span class="h-ab">Abundance <span class="h-unit">· percentile</span></span>'
+        '<span></span></div>'
+    )
+    items = "".join(_result_item_html(*row) for row in rows)
+    st.markdown(f'<div class="result-list">{head}{items}</div>', unsafe_allow_html=True)
 
 
 def render_rank_plot(raw_abundance: dict, top_results, gene_lookup: dict, max_labels: int = 15):
@@ -534,7 +826,7 @@ def render_rank_plot(raw_abundance: dict, top_results, gene_lookup: dict, max_la
     use_log_scale = all(v > 0 for v in y_all)
 
     fig, ax = plt.subplots(figsize=(8, 3.6))
-    ax.plot(x_all, y_all, color="#c9d3d0", linewidth=1.5, zorder=1, label="all measured proteins")
+    ax.plot(x_all, y_all, color="#C5CCD8", linewidth=1.5, zorder=1, label="all measured proteins")
 
     hits = []
     for pid, _cos_sim, _pct in top_results:
@@ -672,10 +964,23 @@ with st.spinner("Loading model..."):
 # header once a sample is already loaded).
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown('<div class="sidebar-section-label" style="margin-top:0;">Sample</div>', unsafe_allow_html=True)
-    st.caption("Proteomics data")
+    st.markdown('<div class="sidebar-section-label first">1 · Proteomics sample</div>', unsafe_allow_html=True)
     uploaded = st.file_uploader("Upload CSV", type="csv", label_visibility="collapsed")
-    use_example = st.button("Use example dataset", use_container_width=True)
+    st.markdown('<div class="sidebar-or">or</div>', unsafe_allow_html=True)
+    use_example = st.button("Use example dataset", width="stretch")
+    with st.expander("Expected CSV format", expanded=False):
+        st.markdown(
+            "```\n"
+            "gene,abundance\n"
+            "EGFR,1.23\n"
+            "KRAS,0.45\n"
+            "MET,2.67\n"
+            "```\n"
+            "One row per protein: gene name + raw abundance value from your own measurement."
+        )
+    # Filled in further down, once the sample has been processed -- keeps
+    # the loaded-dataset summary directly under the upload controls.
+    dataset_status_slot = st.empty()
 
 # resolve which file to process: an upload takes priority; otherwise the
 # example button (sticky via session_state so it survives the rerun the
@@ -736,35 +1041,36 @@ if active_source is not None:
 # ---------------------------------------------------------------------------
 with st.sidebar:
     if active_source is not None:
-        st.markdown(
-            f'<div class="dataset-status"><div class="dataset-status-label">{sample_label}</div>'
-            f'<div class="dataset-status-count">{n_matched:,} proteins</div></div>',
+        if isinstance(active_source, Path):
+            card_eyebrow, card_name = "Example dataset loaded", "LUAD patient 11LU013 · CPTAC"
+        else:
+            card_eyebrow, card_name = "Sample loaded", sample_label
+        dataset_status_slot.markdown(
+            f'<div class="dataset-card">'
+            f'<div class="dc-eyebrow"><span class="dot"></span>{card_eyebrow}</div>'
+            f'<div class="dc-name" title="{html.escape(str(sample_label))}">{html.escape(str(card_name))}</div>'
+            f'<div class="dc-stats">'
+            f'<div class="dc-stat main" title="Proteins matched to the reference set and searchable">'
+            f'<b>{n_matched:,}</b><span>matched proteins</span></div>'
+            f'<div class="dc-stat" title="Dropped: gene name appeared more than once in the file">'
+            f'<b>{n_ambiguous:,}</b><span>ambiguous</span></div>'
+            f'<div class="dc-stat" title="Skipped: not in our reference protein set">'
+            f'<b>{n_unmatched:,}</b><span>not in reference</span></div>'
+            f'</div>'
+            + (
+                '<div class="dc-note">Ambiguous = gene name appeared more than once in the file. '
+                'Not in reference = no annotated protein in our reference set. Both are skipped.</div>'
+                if (n_ambiguous or n_unmatched) else ""
+            )
+            + '</div>',
             unsafe_allow_html=True,
         )
-        if n_ambiguous or n_unmatched:
-            st.caption(
-                f"{n_ambiguous} dropped as ambiguous (gene name appeared more than once in the file), "
-                f"{n_unmatched} not in our reference protein set and skipped."
-            )
-        st.markdown("---")
 
-    st.markdown('<div class="sidebar-section-label">Results</div>', unsafe_allow_html=True)
-    st.caption("Number of proteins")
+    st.markdown('<div class="sidebar-section-label">2 · Results</div>', unsafe_allow_html=True)
     top_k = st.slider(
-        "Number of results to show", min_value=5, max_value=50, value=DEFAULT_TOP_K,
-        label_visibility="collapsed",
+        "Proteins to show", min_value=5, max_value=50, value=DEFAULT_TOP_K,
     )
 
-    with st.expander("Expected CSV format", expanded=False):
-        st.markdown(
-            "```\n"
-            "gene,abundance\n"
-            "EGFR,1.23\n"
-            "KRAS,0.45\n"
-            "MET,2.67\n"
-            "```\n"
-            "One row per protein: gene name + raw abundance value from your own measurement."
-        )
     if client is None:
         st.warning(
             "No Claude API key configured — Stage 3 interpretation is disabled. "
@@ -773,24 +1079,46 @@ with st.sidebar:
         )
 
 # ---------------------------------------------------------------------------
-# Header -- full onboarding (logo, headline, explainer) only before a
-# sample is loaded. Once one is loaded, the intro collapses to just the
-# logo, so the search/results stay the dominant part of the screen and
-# nobody has to scroll past onboarding content on every search.
+# Header -- the ProteomIQ wordmark plus a compact workflow indicator, always
+# shown. Full onboarding (headline, explainer) only before a sample is
+# loaded; afterwards the header stays compact so the search/results remain
+# the dominant part of the screen.
 # ---------------------------------------------------------------------------
-render_brand_header()
+_current_query = st.session_state.get("main_query") or ""
+_searched = active_source is not None and bool(_current_query)
+# chat_messages is only cleared further down when the query changes, so
+# also require the query to be the one the conversation was about.
+_interpreted = (
+    _searched
+    and bool(st.session_state.get("chat_messages"))
+    and st.session_state.get("last_query") == _current_query
+)
+if active_source is None:
+    _steps = ("current", "todo", "todo", "todo")
+elif not _searched:
+    _steps = ("done", "current", "todo", "todo")
+elif not _interpreted:
+    _steps = ("done", "done", "current", "todo")
+else:
+    _steps = ("done", "done", "done", "current")
+render_brand_header(_steps)
 
 if active_source is None:
     st.markdown("""
-    <div class="hero">
-      <h1>Explore proteins through natural language</h1>
-      <p>Search proteins measured in your proteomics sample using semantic similarity
-      between protein and text embeddings.</p>
-      <div class="hero-accent"></div>
-    </div>
-    """, unsafe_allow_html=True)
+<div class="hero">
+<h1>Explore proteins through natural language</h1>
+<p>Search the proteins measured in your proteomics sample with a plain-language question &mdash;
+ranked by semantic similarity between protein and text embeddings, with each protein's abundance
+in your sample shown alongside.</p>
+</div>
+<div class="start-card">
+<div class="start-title">Load a proteomics sample to begin</div>
+<div class="start-hint">Upload a CSV with <code>gene</code> and <code>abundance</code> columns in the
+sidebar, or use the example dataset (LUAD patient 11LU013 from CPTAC).</div>
+</div>
+""", unsafe_allow_html=True)
 
-    with st.expander("How does ProteomIQ work?"):
+    with st.container(key="howto"), st.expander("How does ProteomIQ work?"):
         st.markdown("""
 - **Semantic relevance** (purple bar) — how closely a protein's known biological function matches
   your question, measured by a model trained to connect protein sequences with natural-language
@@ -815,41 +1143,82 @@ is significantly up- or down-regulated. Treat ProteomIQ's output as a starting p
 hypothesis generation, not a validated finding.
         """)
 
-    st.markdown(
-        '<div class="minimal-empty-title">Upload a proteomics sample to begin</div>'
-        '<div class="minimal-empty-hint">Select a CSV file from the sidebar or use the example dataset.</div>',
-        unsafe_allow_html=True,
-    )
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Steps 2-4, side by side: query+results on the left as the main content,
-# the chat as a persistent panel on the right -- CellWhisperer-style layout
-# (a primary view + a dedicated "chat protocol" panel beside it), rather
-# than the chat stacked inline below everything else.
+# Steps 2-4, side by side: search + results in the wider center column as
+# the main workspace, AI interpretation in a narrower column on the right
+# -- CellWhisperer-style layout (a primary view + a dedicated "chat
+# protocol" panel beside it), rather than the chat stacked below everything.
 # ---------------------------------------------------------------------------
-main_col, chat_col = st.columns([1, 1], gap="large")
+main_col, chat_col = st.columns([1.75, 1], gap="large")
+
+
+def render_ai_cta(state: str, n_proteins: int = 0) -> bool:
+    """Right-column call-to-action shown BEFORE any interpretation exists:
+    a compact optional-feature card, not an (empty) chat. state is one of
+    "no_query" (nothing to interpret yet -> disabled), "no_client" (no API
+    key -> disabled) or "ready". Returns True when the button was clicked.
+    Once a conversation exists, the caller renders the chat panel instead."""
+    with st.container(key="ai_cta"):
+        if state == "ready":
+            intro = (
+                f"Get a short biological interpretation of the top {n_proteins} proteins, "
+                "then ask follow-up questions about the results."
+            )
+        elif state == "no_client":
+            intro = "Unavailable — no Claude API key is configured for this app (see sidebar)."
+        else:
+            intro = "Available once you have run a protein search."
+        st.markdown(
+            '<div class="section-eyebrow">AI interpretation · optional</div>'
+            '<div class="ai-title">Interpret these results</div>'
+            f'<p class="ai-text">{intro}</p>'
+            '<ul class="ai-points">'
+            '<li>Uses the retrieved proteins, their abundance in this sample and UniProt function text</li>'
+            '<li>Follow-up questions and new searches within the same conversation</li>'
+            '</ul>',
+            unsafe_allow_html=True,
+        )
+        clicked = st.button(
+            "Interpret results", type="primary", key="interpret_btn", width="stretch",
+            disabled=state != "ready",
+        )
+        st.markdown(
+            '<div class="ai-footnote">Interpretation by Claude (Anthropic) · for hypothesis '
+            'generation, not diagnosis.</div>',
+            unsafe_allow_html=True,
+        )
+    return clicked
+
 
 with main_col:
-    # Search -- the main focus of the page once a sample is loaded. Styled
-    # via the .st-key-main_query CSS rule above (larger type, brand focus
-    # ring) so this is the visually dominant control on the page. The
-    # "Search" button is an additional, purely visual trigger -- clicking
-    # it just causes Streamlit's normal rerun, which re-evaluates the same
-    # last_query comparison below exactly as pressing Enter already does;
-    # no new state-handling logic, so the existing behavior is unchanged.
+    # Search -- the main focus of the page once a sample is loaded: one
+    # horizontal bar, [ large input ][ Search ]. The "Search" button is an
+    # additional, purely visual trigger -- clicking it just causes
+    # Streamlit's normal rerun, which re-evaluates the same last_query
+    # comparison below exactly as pressing Enter already does; no new
+    # state-handling logic. Fixed pixel width + nowrap (CSS) so the label
+    # can never wrap.
     render_section_header("Protein Search", "Find proteins in this sample using natural language.")
-    search_input_col, search_button_col = st.columns([5, 1])
-    with search_input_col:
+    with st.container(horizontal=True, vertical_alignment="center", key="search_bar"):
         query = st.text_input(
             "Question", label_visibility="collapsed", key="main_query",
             placeholder="Describe a biological function, process, pathway or phenotype...",
+            width="stretch",
         )
-    with search_button_col:
-        st.button("Search", use_container_width=True)
-    st.caption("Examples: receptor tyrosine kinase signaling · immune evasion in lung cancer · DNA damage repair")
+        st.button("Search", key="search_btn", type="primary", width=128)
+    st.markdown(
+        '<div class="search-examples">Examples: '
+        '<span class="ex">receptor tyrosine kinase signaling</span>'
+        '<span class="ex">immune evasion in lung cancer</span>'
+        '<span class="ex">DNA damage repair</span></div>',
+        unsafe_allow_html=True,
+    )
 
     if not query:
+        with chat_col:
+            render_ai_cta("no_query")
         st.stop()
 
     if st.session_state.get("last_query") != query:
@@ -868,77 +1237,84 @@ with main_col:
         scored = st.session_state["scored"]
 
     top = scored[:top_k]
-    render_section_header("Results", f"{len(top)} proteins ranked by semantic similarity")
+    st.markdown('<div class="search-spacer"></div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="results-head"><div class="section-title">Results</div>'
+        f'<span class="count-badge">{len(top)} proteins</span></div>'
+        f'<div class="results-sub">Ranked by semantic similarity to '
+        f'<span class="q">“{html.escape(query)}”</span> · click a protein for its function</div>',
+        unsafe_allow_html=True,
+    )
+    render_result_list([
+        (i, gene_lookup.get(pid, pid), cos_sim, pct, annotation_lookup.get(pid))
+        for i, (pid, cos_sim, pct) in enumerate(top, start=1)
+    ])
 
-    for i, (pid, cos_sim, pct) in enumerate(top, start=1):
-        gene = gene_lookup.get(pid, pid)
-        annotation = annotation_lookup.get(pid)
-        render_result_row(i, gene, cos_sim, pct, annotation)
-
-    st.markdown("##### Where these proteins sit in the sample's abundance profile")
-    rank_plot_result = render_rank_plot(raw_abundance, top, gene_lookup)
-    if rank_plot_result is not None:
-        rank_fig, used_log_scale = rank_plot_result
-        st.pyplot(rank_fig, use_container_width=True)
-        if used_log_scale:
-            scale_clause = " on a log scale, since proteomes span several orders of magnitude,"
-        else:
-            scale_clause = ""
-        st.caption(
-            f"The standard single-sample proteomics view: every measured protein ranked by "
-            f"abundance{scale_clause} most abundant on the left. Highlighted points are the "
-            "proteins shown above, so you can see whether a relevant protein is backed by real "
-            "expression or is a low-abundance long-shot."
+    st.markdown('<div class="section-gap"></div>', unsafe_allow_html=True)
+    with st.container(key="plot_card"):
+        render_section_header(
+            "Abundance profile",
+            "Where these proteins sit among all proteins measured in this sample.",
         )
+        rank_plot_result = render_rank_plot(raw_abundance, top, gene_lookup)
+        if rank_plot_result is not None:
+            rank_fig, used_log_scale = rank_plot_result
+            st.pyplot(rank_fig, width="stretch")
+            if used_log_scale:
+                scale_clause = " on a log scale, since proteomes span several orders of magnitude,"
+            else:
+                scale_clause = ""
+            st.caption(
+                f"The standard single-sample proteomics view: every measured protein ranked by "
+                f"abundance{scale_clause} most abundant on the left. Highlighted points are the "
+                "proteins shown above, so you can see whether a relevant protein is backed by real "
+                "expression or is a low-abundance long-shot."
+            )
 
 # Step 4: interpretation -- a real conversation with Claude about this
-# sample, rendered as a persistent panel beside the results (not stacked
-# below them) so the retrieved proteins stay in view while chatting about
-# them. Stage 1/2 retrieval logic is unchanged; only this layer is
-# multi-turn AND can trigger additional retrievals mid-conversation via the
-# search box below, so a follow-up that needs different data doesn't have to
-# restart the whole chat. Deliberately NOT agentic -- Claude never decides on
-# its own to run a new search; the researcher always explicitly triggers one
-# (same "researcher brings the question" principle Step 2 already follows,
-# just extended to every search in the session, not only the first).
-# The very first turn still requires an explicit click (Claude API calls
-# cost money and take a few seconds, so this shouldn't fire on every rerun).
+# sample, beside the results (not stacked below them) so the retrieved
+# proteins stay in view while chatting about them. Stage 1/2 retrieval
+# logic is unchanged; only this layer is multi-turn AND can trigger
+# additional retrievals mid-conversation via the search box below, so a
+# follow-up that needs different data doesn't have to restart the whole
+# chat. Deliberately NOT agentic -- Claude never decides on its own to run a
+# new search; the researcher always explicitly triggers one.
+# Before the first turn, only a compact call-to-action card is shown (no
+# empty chat panel); the first turn requires an explicit click (Claude API
+# calls cost money and take a few seconds, so this shouldn't fire on every
+# rerun). After it succeeds, st.rerun() swaps the card for the chat panel.
 with chat_col:
-    # A real st.container(key=...), not the raw-HTML "open a <div>, close it
-    # in a later st.markdown call" hack this used before. That hack doesn't
-    # actually work the way it looks like it should: each st.markdown() call
-    # renders its own isolated HTML fragment, so an unclosed <div> in one
-    # call doesn't stay open across the separate elements rendered after it
-    # -- it just gets auto-closed by the browser immediately, as an empty
-    # div, which is exactly the stray rounded empty box that was appearing
-    # above the Chat heading. st.container(key=...) genuinely nests
-    # everything inside it in one real DOM container, and gets a stable
-    # `st-key-chat_panel` class we can style (see CSS above), so this both
-    # removes the bug and makes the bordered panel actually work correctly
-    # for the first time.
-    with st.container(key="chat_panel"):
-        render_section_header("Chat", "Ask follow-up questions about these results, or search for something new.")
-
-        if client is None:
-            st.caption("Unavailable — no Claude API key configured (see sidebar).")
-        elif not st.session_state.get("chat_messages"):
-            if st.button("Interpret with Claude", type="primary"):
-                chat_searches = [{"query": query, "selected": scored[:top_k]}]
-                system_prompt = build_chat_system_prompt(chat_searches, gene_lookup, annotation_lookup)
-                opening_question = "What's your interpretation of these results?"
-                with st.spinner("Asking Claude..."):
-                    try:
-                        reply = stage3_chat(client, system_prompt, [{"role": "user", "content": opening_question}])
-                        st.session_state["chat_searches"] = chat_searches
-                        st.session_state["chat_system_prompt"] = system_prompt
-                        st.session_state["chat_messages"] = [
-                            {"role": "user", "content": opening_question},
-                            {"role": "assistant", "content": reply},
-                        ]
-                    except Exception as e:
-                        st.error(f"Claude request failed: {e}")
-        else:
-            chat_history = st.container(height=600)
+    if client is None or not st.session_state.get("chat_messages"):
+        if render_ai_cta("ready" if client is not None else "no_client", n_proteins=len(top)):
+            chat_searches = [{"query": query, "selected": scored[:top_k]}]
+            system_prompt = build_chat_system_prompt(chat_searches, gene_lookup, annotation_lookup)
+            opening_question = "What's your interpretation of these results?"
+            with st.spinner("Interpreting the results..."):
+                try:
+                    reply = stage3_chat(client, system_prompt, [{"role": "user", "content": opening_question}])
+                    st.session_state["chat_searches"] = chat_searches
+                    st.session_state["chat_system_prompt"] = system_prompt
+                    st.session_state["chat_messages"] = [
+                        {"role": "user", "content": opening_question},
+                        {"role": "assistant", "content": reply},
+                    ]
+                except Exception as e:
+                    st.error(f"Claude request failed: {e}")
+                else:
+                    st.rerun()
+    else:
+        # A real st.container(key=...) -- genuinely nests everything inside
+        # it in one DOM container with a stable `st-key-chat_panel` class we
+        # can style (see CSS above). (A raw-HTML "open a <div> in one
+        # st.markdown call, close it in a later one" does not work: each
+        # call is its own isolated fragment.)
+        with st.container(key="chat_panel"):
+            render_section_header(
+                'Interpretation<span class="ai-badge">Claude</span>',
+                "Ask follow-up questions about these results, or search for something new.",
+                eyebrow="AI interpretation",
+            )
+            chat_history = st.container(height=560)
             with chat_history:
                 for msg in st.session_state["chat_messages"]:
                     with st.chat_message(msg["role"]):
@@ -1010,8 +1386,8 @@ with chat_col:
                             st.error(f"Claude request failed: {e}")
                     st.rerun()
 
-st.markdown("---")
-st.caption(
-    "ProteomIQ is a research prototype for hypothesis generation, not a diagnostic tool. "
-    "See the accompanying thesis for methodology, evaluation, and known limitations."
+st.markdown(
+    '<div class="app-footer">ProteomIQ is a research prototype for hypothesis generation, not a '
+    'diagnostic tool. See the accompanying thesis for methodology, evaluation, and known limitations.</div>',
+    unsafe_allow_html=True,
 )
