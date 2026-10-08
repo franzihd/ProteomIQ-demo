@@ -13,7 +13,7 @@ from the main ProteomIQ repository — do not edit it by hand.
 2. Type a biological question, e.g. *"receptor tyrosine kinase signaling"*.
 3. The app ranks the sample's proteins by semantic relevance to your query and shows
    each protein's within-sample abundance percentile.
-4. Optionally click **Interpret with Claude** for a short natural-language reading
+4. Optionally click **Interpret results** for a short natural-language reading (by Claude)
    of the top hits.
 
 **Upload format:** a long-format CSV with one row per protein, a `gene` column

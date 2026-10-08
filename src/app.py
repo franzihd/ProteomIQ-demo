@@ -186,9 +186,11 @@ input, textarea, button, select,
 }
 
 /* Main workspace: capped width so very wide monitors don't stretch rows
-   into unreadable lines, centered, with Streamlit's top padding reduced. */
+   into unreadable lines, centered. Top padding must clear Streamlit's
+   fixed top bar (on Streamlit Community Cloud it carries Share/GitHub
+   icons and is opaque) -- less than ~3.5rem clips the top of the logo. */
 [data-testid="stMainBlockContainer"] {
-    padding-top: 1.5rem !important;
+    padding-top: 3.75rem !important;
     padding-left: 2.5rem !important;
     padding-right: 2.5rem !important;
     max-width: 1560px;
