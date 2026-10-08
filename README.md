@@ -1,8 +1,14 @@
-# ProteomIQ — demo
+<p align="center">
+  <img src="docs/logo.png" alt="ProteomIQ — proteins meet language" width="460">
+</p>
 
-Natural-language search over the proteins measured in a single proteomics sample.
+<p align="center">
+  Natural-language search over the proteins measured in a single proteomics sample.
+</p>
 
-**Open the app:** https://proteomiq.streamlit.app/
+<p align="center">
+  <b>Open the app:</b> <a href="https://proteomiq.streamlit.app/">proteomiq.streamlit.app</a>
+</p>
 
 This repository only contains what the interactive app needs to run (code, trained
 projection heads, precomputed ESM2 embeddings, example samples).
