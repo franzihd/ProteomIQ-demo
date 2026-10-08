@@ -408,7 +408,7 @@ input, textarea, button, select,
     content: ""; position: absolute; left: 0.1rem; top: 0.62rem;
     width: 0.38rem; height: 0.38rem; border-radius: 50%; background: var(--violet-600);
 }
-.ai-footnote { font-size: 0.74rem; color: var(--subtle); margin-top: 0.15rem; line-height: 1.45; }
+.ai-footnote { font-size: 0.74rem; color: var(--subtle); margin-top: 0.15rem; line-height: 1.45; text-align: center; }
 .ai-badge {
     display: inline-block; vertical-align: middle; margin-left: 0.45rem;
     font-size: 0.68rem; font-weight: 600; color: var(--violet-700);
@@ -945,11 +945,28 @@ def get_gene_to_ensp_lookup():
     return build_gene_to_ensp_lookup()
 
 
+def _get_anthropic_api_key():
+    """API key from Streamlit secrets (Streamlit Community Cloud) or the
+    ANTHROPIC_API_KEY environment variable (local runs). st.secrets is read
+    first because it reflects edits made in the Cloud "Secrets" settings
+    right away, while environment variables are only set at process start.
+    Stray whitespace/newlines from copy-pasting are stripped -- they make
+    an otherwise correct key fail with 401 "invalid"."""
+    try:
+        key = st.secrets.get("ANTHROPIC_API_KEY")
+    except Exception:  # no secrets.toml at all (typical for local runs)
+        key = None
+    key = (key or os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+    return key or None
+
+
 @st.cache_resource
-def get_claude_client():
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+def get_claude_client(api_key):
+    # Cached per key value, so changing the key in the secrets creates a new
+    # client instead of silently reusing one built with the old key.
+    if not api_key:
         return None
-    return anthropic.Anthropic()
+    return anthropic.Anthropic(api_key=api_key)
 
 
 with st.spinner("Loading model..."):
@@ -958,7 +975,7 @@ with st.spinner("Loading model..."):
     gene_lookup = get_gene_lookup()
     annotation_lookup = get_annotation_lookup()
     gene_to_ensp = get_gene_to_ensp_lookup()
-    client = get_claude_client()
+    client = get_claude_client(_get_anthropic_api_key())
 
 # ---------------------------------------------------------------------------
 # Sidebar, part A: sample input controls -- has to happen before
