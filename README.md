@@ -3,10 +3,6 @@
 </p>
 
 <p align="center">
-  Natural-language search over the proteins measured in a single proteomics sample.
-</p>
-
-<p align="center">
   <b>Open the app:</b> <a href="https://proteomiq.streamlit.app/">proteomiq.streamlit.app</a>
 </p>
 
