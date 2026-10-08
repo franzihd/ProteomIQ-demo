@@ -398,7 +398,7 @@ input, textarea, button, select,
     border: 1px solid var(--card-border); border-radius: var(--radius);
     background: linear-gradient(180deg, var(--violet-50) 0%, #ffffff 70%);
     box-shadow: var(--shadow-sm);
-    padding: 1.15rem 1.2rem 1rem 1.2rem;
+    padding: 1.15rem 1.2rem 1.5rem 1.2rem;
 }
 .ai-title { font-size: 1.08rem; font-weight: 700; color: var(--ink); margin: 0 0 0.35rem 0; }
 [data-testid="stMarkdownContainer"] p.ai-text { font-size: 0.86rem; color: var(--muted); line-height: 1.55; margin: 0 0 0.35rem 0; }
@@ -408,7 +408,7 @@ input, textarea, button, select,
     content: ""; position: absolute; left: 0.1rem; top: 0.62rem;
     width: 0.38rem; height: 0.38rem; border-radius: 50%; background: var(--violet-600);
 }
-.ai-footnote { font-size: 0.74rem; color: var(--subtle); margin-top: 0.15rem; line-height: 1.45; text-align: center; }
+.ai-footnote { font-size: 0.74rem; color: var(--subtle); margin: -0.45rem 0 0.35rem 0; line-height: 1.45; text-align: center; }
 .ai-badge {
     display: inline-block; vertical-align: middle; margin-left: 0.45rem;
     font-size: 0.68rem; font-weight: 600; color: var(--violet-700);
