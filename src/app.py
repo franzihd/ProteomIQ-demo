@@ -199,17 +199,18 @@ input, textarea, button, select,
 
 /* ---------- Header: wordmark (visual anchor) + workflow indicator ---------- */
 .app-header {
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 1rem 2rem;
-    padding: 0.35rem 0 1.15rem 0;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 1.1rem;
+    padding: 0.25rem 0 1.25rem 0;
     margin-bottom: 1.5rem;
     border-bottom: 1px solid var(--card-border);
 }
-.brand-wordmark { height: clamp(56px, 5.6vw, 80px); width: auto; display: block; }
+/* Centered brand anchor; max-width keeps it from overflowing narrow windows. */
+.brand-wordmark { height: clamp(72px, 7.5vw, 112px); max-width: 100%; width: auto; object-fit: contain; display: block; }
 .brand-fallback { font-size: 2rem; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
 
 .workflow {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.35rem;
     list-style: none; margin: 0; padding: 0;
 }
 .workflow .step {
