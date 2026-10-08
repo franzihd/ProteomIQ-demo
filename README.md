@@ -2,27 +2,92 @@
 
 Natural-language search over the proteins measured in a single proteomics sample.
 
+**Open the app:** https://proteomiq.streamlit.app/
+
 This repository only contains what the interactive app needs to run (code, trained
-projection heads, precomputed ESM2 embeddings, two example patients). It is generated
-from the main ProteomIQ repository — do not edit it by hand.
+projection heads, precomputed ESM2 embeddings, example samples).
 
-## How to try it
+> **First start may take a minute.** Apps on Streamlit Community Cloud go to sleep after
+> a while without visitors. If you see *"This app has gone to sleep"*, click the button
+> to wake it up and wait until the model has loaded.
 
-1. Click **Use example dataset** in the sidebar to use a real CPTAC lung adenocarcinoma
-   patient (11LU013), or upload your own CSV (see format below).
-2. Type a biological question, e.g. *"receptor tyrosine kinase signaling"*.
-3. The app ranks the sample's proteins by semantic relevance to your query and shows
-   each protein's within-sample abundance percentile.
-4. Optionally click **Interpret results** for a short natural-language reading (by Claude)
-   of the top hits.
+## Quick start (about 2 minutes)
 
-**Upload format:** a long-format CSV with one row per protein, a `gene` column
-(gene symbol) and an `abundance` column (raw value, any scale — it is rank-normalized
-within the sample). Two example files are included under `data/test_abundance_matrix/`
-(patients 11LU013 and 11LU016).
+1. Open the app and click **Use example dataset** in the sidebar. This loads a real
+   lung adenocarcinoma sample from CPTAC (patient 11LU013).
+2. Type a question into the search field and press **Search**, for example
+   *"receptor tyrosine kinase signaling"*.
+3. Inspect the ranked proteins:
+   - **Semantic relevance** (purple): cosine similarity between the protein and your
+     query. The list is ranked by this value only.
+   - **Abundance** (blue): the protein's percentile within this sample. It is shown for
+     context and does not change the ranking.
+   - Click a protein to read its UniProt function.
+4. Optional: click **Interpret results** on the right. Claude summarises the retrieved
+   proteins and you can then ask follow-up questions in the chat. Gene names you
+   mention (e.g. *"What about EGFR?"*) are looked up in the sample automatically, and
+   **Search for something else in this sample** adds a new search to the same conversation.
 
-**Note:** results are intended for hypothesis generation, not diagnosis. Abundance is
-a within-sample rank, not up-/down-regulation relative to a reference.
+Example queries to try: *"immune evasion in lung cancer"*, *"DNA damage repair"*,
+*"cell cycle and proliferation"*, *"mitochondrial energy metabolism"*.
 
-Model: frozen ESM2 (150M) + frozen BioBERT, contrastively trained projection heads
+## Trying other samples
+
+The folder [`data/test_abundance_matrix/`](data/test_abundance_matrix/) contains two
+tumor samples for each of the nine CPTAC cancer types. To use one, open the file on
+GitHub, click **Download raw file**, and upload it in the app's sidebar via **Upload**.
+
+| File | Cancer type | Proteins in file | Searchable proteins |
+|---|---|---:|---:|
+| `11LU013.csv` (default example) | Lung adenocarcinoma (LUAD) | 10,804 | 9,089 |
+| `11LU016.csv` | Lung adenocarcinoma (LUAD) | 10,743 | 9,053 |
+| `LSCC_C3L-01663.csv` | Lung squamous cell carcinoma (LSCC) | 11,508 | 9,572 |
+| `LSCC_C3N-02426.csv` | Lung squamous cell carcinoma (LSCC) | 11,486 | 9,530 |
+| `BRCA_01BR032.csv` | Breast invasive carcinoma (BRCA) | 10,662 | 8,882 |
+| `BRCA_11BR053.csv` | Breast invasive carcinoma (BRCA) | 11,172 | 9,248 |
+| `CCRCC_C3L-00418.csv` | Clear cell renal cell carcinoma (CCRCC) | 9,537 | 8,150 |
+| `CCRCC_C3N-00494.csv` | Clear cell renal cell carcinoma (CCRCC) | 8,978 | 7,723 |
+| `GBM_C3L-01154.csv` | Glioblastoma (GBM) | 11,195 | 9,262 |
+| `GBM_C3N-02255.csv` | Glioblastoma (GBM) | 10,943 | 9,145 |
+| `HNSCC_C3L-04025.csv` | Head and neck squamous cell carcinoma (HNSCC) | 9,800 | 8,432 |
+| `HNSCC_C3N-03045.csv` | Head and neck squamous cell carcinoma (HNSCC) | 9,825 | 8,452 |
+| `OV_02OV015.csv` | Ovarian serous carcinoma (OV) | 8,614 | 7,443 |
+| `OV_26OV009.csv` | Ovarian serous carcinoma (OV) | 8,630 | 7,485 |
+| `PDAC_C3L-00598.csv` | Pancreatic ductal adenocarcinoma (PDAC) | 9,567 | 8,337 |
+| `PDAC_C3L-01689.csv` | Pancreatic ductal adenocarcinoma (PDAC) | 8,850 | 7,750 |
+| `UCEC_C3L-00356.csv` | Uterine corpus endometrial carcinoma (UCEC) | 10,062 | 8,613 |
+| `UCEC_C3N-00836.csv` | Uterine corpus endometrial carcinoma (UCEC) | 9,958 | 8,518 |
+
+*Searchable proteins* are those that could be mapped to the model's reference protein
+set; gene names that occur more than once in a file, or that are not in the reference
+set, are skipped.
+
+The samples are the measured abundance values of single CPTAC patients (Clinical
+Proteomic Tumor Analysis Consortium), with missing values removed.
+
+## Using your own data
+
+Upload a CSV with one row per protein and two columns:
+
+```
+gene,abundance
+EGFR,1.23
+KRAS,0.45
+MET,2.67
+```
+
+- `gene`: gene symbol
+- `abundance`: the measured value on any scale. It is converted to a percentile rank
+  within the sample, so values from different instruments or normalizations can be used.
+
+## Notes and limitations
+
+- Results are intended for **hypothesis generation, not diagnosis**.
+- Abundance is a **within-sample rank**, not up- or down-regulation relative to a
+  reference. A naturally abundant protein ranks high in every sample.
+- Only proteins measured in the uploaded sample are searched.
+- The interpretation is generated by Claude (Anthropic) from the retrieved proteins and
+  can only be as good as the retrieval it is based on.
+
+Model: frozen ESM-2 (150M) + frozen BioBERT, contrastively trained projection heads
 on the reviewed human UniProt proteome (multiview checkpoint).
