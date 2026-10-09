@@ -554,7 +554,7 @@ input, textarea, button, select,
 [data-testid="stExpander"] summary:hover svg { fill: var(--violet-700); }
 [data-testid="stSidebar"] [data-testid="stExpander"] p { font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
 [data-testid="stSidebar"] [data-testid="stExpander"] code { font-size: 0.78rem; }
-.st-key-howto { max-width: 44rem; }
+.st-key-note { max-width: 44rem; }
 
 .app-footer {
     margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--card-border);
@@ -1135,9 +1135,9 @@ if active_source is None:
     st.markdown("""
 <div class="hero">
 <h1>Explore proteins through natural language</h1>
-<p>Search the proteins measured in your proteomics sample with a plain-language question &mdash;
-ranked by semantic similarity between protein and text embeddings, with each protein's abundance
-in your sample shown alongside.</p>
+<p>Retrieve proteins measured in your proteomics sample using natural language. The retrieved
+proteins are ranked by semantic similarity between protein and text embeddings, with each
+protein&rsquo;s abundance percentile displayed alongside.</p>
 </div>
 <div class="start-card">
 <div class="start-title">Load a proteomics sample to begin</div>
@@ -1146,30 +1146,9 @@ sidebar, or use the example dataset (LUAD patient 11LU013 from CPTAC).</div>
 </div>
 """, unsafe_allow_html=True)
 
-    with st.container(key="howto"), st.expander("How does ProteomIQ work?"):
-        st.markdown("""
-- **Semantic relevance** (purple bar) — how closely a protein's known biological function matches
-  your question, measured by a model trained to connect protein sequences with natural-language
-  descriptions of protein function. Score range: **cosine similarity**, roughly -1 (unrelated) to 1
-  (closely related, this model was seen to be around 0.3–0.4 for a strong match).
-- **Abundance** (blue bar) — how highly this protein was measured relative to every other protein
-  in *this specific sample*, as a percentile. This is relative within the sample, not an absolute
-  concentration, and not a statement about whether the protein is "overexpressed" — a naturally
-  abundant protein (e.g. albumin) will always rank high regardless of regulation.
-- **Ranking** is by semantic relevance only — abundance is shown for context, not used to reorder
-  or filter results, so a highly relevant but low-abundance protein still shows up.
-- Only proteins that were actually measured in the uploaded sample are searched — not the whole
-  human proteome — so every result is something a researcher can actually follow up on in this
-  patient.
-
-**What this tool is, and isn't.** ProteomIQ explores *one sample at a time*, interactively, in
-natural language — closer to how a clinician reviews a single patient's profile than to a
-population-level study. It is **not** a substitute for group-level differential expression
-analysis (tools like GSEA or limma, which compare many samples across conditions with proper
-statistical testing) — those remain the right choice when comparing cohorts or claiming a protein
-is significantly up- or down-regulated. Treat ProteomIQ's output as a starting point for
-hypothesis generation, not a validated finding.
-        """)
+    with st.container(key="note"):
+        st.caption("**Note:** ProteomIQ is a proof of concept developed for research purposes. "
+                   "Results are exploratory and should not be considered validated biological findings.")
 
     st.stop()
 
@@ -1228,7 +1207,7 @@ with main_col:
     # comparison below exactly as pressing Enter already does; no new
     # state-handling logic. Fixed pixel width + nowrap (CSS) so the label
     # can never wrap.
-    render_section_header("Protein Search", "Find proteins in this sample using natural language.")
+    render_section_header("Protein Search", "Retrieve proteins from this sample using natural language.")
     with st.container(horizontal=True, vertical_alignment="center", key="search_bar"):
         query = st.text_input(
             "Question", label_visibility="collapsed", key="main_query",
@@ -1286,18 +1265,8 @@ with main_col:
         )
         rank_plot_result = render_rank_plot(raw_abundance, top, gene_lookup)
         if rank_plot_result is not None:
-            rank_fig, used_log_scale = rank_plot_result
+            rank_fig, _ = rank_plot_result
             st.pyplot(rank_fig, width="stretch")
-            if used_log_scale:
-                scale_clause = " on a log scale, since proteomes span several orders of magnitude,"
-            else:
-                scale_clause = ""
-            st.caption(
-                f"The standard single-sample proteomics view: every measured protein ranked by "
-                f"abundance{scale_clause} most abundant on the left. Highlighted points are the "
-                "proteins shown above, so you can see whether a relevant protein is backed by real "
-                "expression or is a low-abundance long-shot."
-            )
 
 # Step 4: interpretation -- a real conversation with Claude about this
 # sample, beside the results (not stacked below them) so the retrieved

@@ -14,7 +14,3 @@ class ProjectionHead(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return F.normalize(self.net(x), dim=-1)
-    
-
-protein_projection_head = ProjectionHead(input_dim=641, hidden_dim=512, output_dim=256)
-textual_projection_head = ProjectionHead(input_dim=768, hidden_dim=512, output_dim=256)

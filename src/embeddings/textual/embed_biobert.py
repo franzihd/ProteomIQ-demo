@@ -54,12 +54,12 @@ def strip_gene_name(gene, annotation):
 
 def append_family_location(text, family, location, include_family, include_location):
     # Family/Location come from data/full_proteome/protein_annotations.csv's
-    # Family/Location columns (added by src/Textual/fetch_family_location.py).
+    # Family/Location columns (added by src/data_acquisition/fetch_family_location.py).
     # Empty cells round-trip through CSV as NaN (pandas turns empty strings
     # into NaN on read), not '' -- the isinstance(x, str) checks below guard
     # against that ("nan" leaking into the text as a literal word).
     # Comma-separated, no field labels (e.g. no "Family: ..." prefix) --
-    # deliberate choice, see CLAUDE.md "Next steps as of 2026-08-16":
+    # deliberate choice:
     # avoids the label-prefixed, term-list-like format that was diagnosed
     # as a self-ID shortcut in the (abandoned) GO-term augmentation ablation
     # (section 10n). Family/Location text is already full sentences (e.g.
@@ -84,7 +84,7 @@ def append_go_terms(text, go_bp, go_cc, include_cc=True):
     # which risks diluting the mean-pooled BioBERT embedding with boilerplate
     # shared across huge swaths of unrelated proteins rather than adding
     # distinguishing signal -- the suspected cause of the masked+GO pathway
-    # AUROC/recall@K regression vs. masked-only (see CLAUDE.md).
+    # AUROC/recall@K regression vs. masked-only.
     parts = [text]
     if isinstance(go_bp, str) and go_bp.strip():
         parts.append(f"Biological process: {go_bp}.")
@@ -100,7 +100,7 @@ def main():
                         help="embed ONLY this field's raw text as the sole input (not "
                              "appended to Function), restricted to proteins that have a "
                              "non-null value for it -- for the multi-view random-selection "
-                             "experiment (see CLAUDE.md), where Function/Family/Location "
+                             "experiment, where Function/Family/Location "
                              "are three separate, independently-embedded text sources and "
                              "one is picked at random per protein per training sample, "
                              "rather than concatenated as in M0-M3. Not combinable with "
@@ -147,8 +147,7 @@ def main():
                           "embedding, those all build appended Function-based text")
 
     # full_proteome is NOT a CPTAC cohort -- it's the separate, unified
-    # proteome-wide directory (data/full_proteome/, see CLAUDE.md section
-    # 11), never moved under data/cptac/ during that reorg. The other 9
+    # proteome-wide directory (data/full_proteome/), never moved under data/cptac/ during that reorg. The other 9
     # real cohort names (luad, brca, ...) do live under data/cptac/{cohort}.
     data_dir = Path("data/full_proteome") if args.cohort == "full_proteome" else Path(f"data/cptac/{args.cohort}")
     annotations_path = data_dir / "protein_annotations.csv"
@@ -223,7 +222,7 @@ def main():
         for col in (["Family"] if args.include_family else []) + (["Location"] if args.include_location else []):
             if col not in annotations.columns:
                 raise SystemExit(f"--include-{col.lower()} requires a '{col}' column in {annotations_path} "
-                                 f"(run src/Textual/fetch_family_location.py first)")
+                                 f"(run src/data_acquisition/fetch_family_location.py first)")
         family_col = annotations.get("Family", pd.Series([None] * n_proteins))
         location_col = annotations.get("Location", pd.Series([None] * n_proteins))
         texts = [append_family_location(t, fam, loc, args.include_family, args.include_location)

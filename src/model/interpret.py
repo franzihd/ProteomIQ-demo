@@ -1,45 +1,10 @@
 """
-Stage 1+2 (sample-restricted) + Stage 3: retrieve relevant proteins from
-WITHIN one specific patient/uploaded sample, then ask Claude to interpret
-the result in plain language.
-
-Unlike retrieve_and_annotate.py's stage1_retrieve (which searches the WHOLE
-human proteome, ~16,893 proteins, then separately labels each candidate's
-abundance -- built for fair pathway-ground-truth spot-checking, where a
-protein can't be excluded just because it wasn't detected in one sample, see
-CLAUDE.md 10j), this script restricts the candidate pool itself to only the
-proteins actually measured in the given sample. Every result is therefore
-guaranteed to have a real abundance value -- no "not detected" placeholders --
-at the cost of never surfacing a protein the instrument failed to detect, even
-if it would otherwise be the best answer to the query. This trade-off was a
-deliberate choice for the interactive researcher-facing tool (as opposed to
-the evaluation scripts, which keep the wide-pool design unchanged).
-
-Because retrieval is already restricted to the sample, Stage 1 (semantic
-relevance) and Stage 2 (abundance annotation) collapse into one pass: every
-candidate already has both a cosine similarity and an abundance percentile.
-Ranking/selection of the top-K stays on cosine similarity alone (semantic
-relevance to the query) -- abundance percentile is attached to each result as
-context, not blended into the ranking. (An earlier draft of this script
-multiplied cos_sim * percentile into one "activity_score" -- that's the exact
-mechanism CLAUDE.md section 10j already tried and deliberately moved away
-from, since it demotes truly relevant proteins just for being low-abundance.
-Reintroducing it here was a mistake, corrected before this script was ever
-run.)
-
-Stage 3 then sends the top-cosine-similarity proteins, their percentiles, and
-their (unmasked -- see build_annotation_lookup) UniProt annotations to Claude,
-with one fixed prompt template asking for a plain-language, hypothesis-only
-interpretation (never a diagnosis).
+Retrieval within one sample (Stage 1/2) and interpretation with Claude (Stage 3).
 
 Usage:
     uv run python src/model/interpret.py \\
         --query "receptor tyrosine kinase signaling" \\
         --patients 11LU013 --cohort luad
-
-    uv run python src/model/interpret.py \\
-        --query "receptor tyrosine kinase signaling" \\
-        --uploaded-csv path/to/sample.csv
 """
 import re
 import sys
@@ -88,8 +53,8 @@ PROMPT_TEMPLATE = (
 
 def build_annotation_lookup():
     """ENSP_ID -> unmasked UniProt annotation (gene name included). Unlike the
-    training-time text (which masks the gene name to avoid the name-shortcut,
-    CLAUDE.md 10m), Stage 3's output is read by a human, not used as a
+    training-time text (which masks the gene name to avoid the name-shortcut),
+    Stage 3's output is read by a human, not used as a
     contrastive-training target -- so gene identity should stay in the text."""
     df = pd.read_csv("data/full_proteome/protein_annotations.csv",
                       usecols=["ENSP_ID", "Annotation"])
@@ -109,7 +74,7 @@ def get_patient_measured_proteins(patient_id: str, cohort: str) -> dict[str, flo
 
 def get_uploaded_measured_proteins(uploaded_csv: str, gene_col: str, abundance_col: str) -> dict[str, float]:
     """Same job as get_patient_measured_proteins, but for a researcher's own
-    freshly uploaded sample. normalize_uploaded_sample.py (CLAUDE.md 11q)
+    freshly uploaded sample. normalize_uploaded_sample.py
     handles rank-normalization and gene -> ENSP_ID matching."""
     result_df, unmatched, n_ambiguous = normalize_uploaded_sample(uploaded_csv, gene_col, abundance_col)
     print(f"  Uploaded sample: {len(result_df)} proteins usable "

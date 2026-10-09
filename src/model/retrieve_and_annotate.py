@@ -1,35 +1,10 @@
 """
-Stage 1 + Stage 2: wide semantic retrieval, then patient-specific abundance annotation.
-
-Stage 1 (semantic retrieval, patient-invariant): embed a free-text query with
-BioBERT + the trained text head, rank all proteins by cosine similarity against
-the trained protein head's embeddings, take the top-N candidates. Candidate
-membership never depends on abundance, so a relevant protein can never be
-excluded for being lowly expressed in one patient.
-
-Stage 2 (patient-specific annotation): for a chosen real patient, look up each
-candidate's actual rank-normalized abundance percentile and attach it. This never
-adds or removes candidates from Stage 1's list -- it only labels them.
-
-Updated to the current full-proteome/homology-split/final-architecture checkpoint
-(CLAUDE.md section 11p) -- the version this script pointed to before
-(checkpoint_no_abundance_best.pt, hidden_dim=512/output_dim=256) is a superseded,
-pre-full-proteome architecture.
-
-Stage 2 can annotate against either an existing CPTAC patient (--patients/
---cohort) or a researcher's own freshly uploaded sample (--uploaded-csv), via
-normalize_uploaded_sample.py (CLAUDE.md section 11q) -- both are looked up the
-same way once normalized, and can be combined in one run for side-by-side
-comparison.
+Stage 1 retrieval over the whole proteome + Stage 2 abundance annotation per patient.
 
 Usage:
     uv run python src/model/retrieve_and_annotate.py \\
         --query "receptor tyrosine kinase signaling" \\
         --patients 11LU013 11LU016 --cohort luad --top-n 50
-
-    uv run python src/model/retrieve_and_annotate.py \\
-        --query "receptor tyrosine kinase signaling" \\
-        --uploaded-csv path/to/sample.csv --top-n 50
 """
 import sys
 import argparse
@@ -49,14 +24,13 @@ BIOBERT_FILENAME = "biobert_embeddings_masked.h5"
 # HuggingFace model ID, not a machine-specific resolved cache path -- resolves
 # via transformers' own cache lookup (finds it locally if already downloaded,
 # fetches it otherwise) so this works on any machine, not just the one it was
-# first hardcoded on (CLAUDE.md, professor-facing tool portability fix).
+# first hardcoded on.
 BIOBERT_PATH = "dmis-lab/biobert-base-cased-v1.2"
 
 
 def build_gene_lookup():
     """ENSP_ID -> Gene name, from the unified full-proteome annotation file
-    (supersedes merging per-cohort protein_annotations.csv files -- see
-    CLAUDE.md section 11b)."""
+    (supersedes merging per-cohort protein_annotations.csv files)."""
     df = pd.read_csv("data/full_proteome/protein_annotations.csv", usecols=["ENSP_ID", "Gene"])
     return dict(zip(df["ENSP_ID"], df["Gene"]))
 
@@ -112,7 +86,7 @@ def encode_query_vector(query: str, tokenizer, biobert_model, text_head, device)
 def stage1_retrieve(query: str, top_n: int, device):
     """Wide, patient-invariant retrieval over the WHOLE human proteome
     (~16,893 proteins) -- built for fair pathway-ground-truth spot-checking
-    (CLAUDE.md 10j/10k), where restricting to one sample's measured proteins
+, where restricting to one sample's measured proteins
     would be invalid (see this file's docstring). For the interactive,
     sample-restricted retrieval used by the researcher-facing tool, see
     interpret.py's retrieve_within_sample instead."""
@@ -165,7 +139,7 @@ def stage2_annotate(candidates, patient_id: str, cohort: str):
 def stage2_annotate_uploaded(candidates, uploaded_csv: str, gene_col: str, abundance_col: str):
     """Same job as stage2_annotate, but for a researcher's own freshly uploaded
     sample instead of an existing CPTAC patient. normalize_uploaded_sample.py
-    (CLAUDE.md section 11q) does the rank-normalization and gene->ENSP_ID
+ does the rank-normalization and gene->ENSP_ID
     matching; here we just look up each Stage 1 candidate's percentile in that
     already-normalized result, same shape as stage2_annotate's per-patient row."""
     result_df, unmatched, n_ambiguous = normalize_uploaded_sample(uploaded_csv, gene_col, abundance_col)

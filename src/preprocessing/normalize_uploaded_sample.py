@@ -1,35 +1,5 @@
 """
-Preprocesses a researcher's uploaded proteomics sample (gene name + raw
-abundance value, one row per protein) into the same shape Stage 2 already
-expects: ENSP_ID -> within-sample abundance percentile.
-
-Three steps, in order:
-1. Rank-normalize the raw abundance values to within-sample percentiles --
-   the same operation (df.rank(pct=True)) already used for CPTAC cohorts in
-   rank_normalize.py, applied here to a single uploaded sample instead of a
-   whole cohort's patient x protein matrix. Done FIRST, over the full
-   uploaded sample as-is, so a protein's percentile reflects its position
-   among everything actually measured -- not a smaller, already-filtered
-   denominator.
-2. Drop genes that appear more than once in the UPLOADED file itself (e.g. a
-   researcher's own file separately measured multiple isoforms of the same
-   gene). Rather than guess which measurement is "the" one, or average them
-   into an invented blended number, these are dropped entirely -- the same
-   principle already used elsewhere in this project for ambiguous cases
-   (DeepLoc's dual-localization proteins, EC's multi-class-spanning enzymes):
-   when a single value can't be assigned confidently, drop rather than
-   fabricate one.
-3. Match each remaining gene name to its ENSP_ID via
-   data/full_proteome/protein_annotations.csv. A small number of gene names
-   (~20 of ~16,893) map to more than one ENSP_ID in OUR reference set --
-   genes that produce more than one distinct protein from the same locus
-   (e.g. CDKN2A -> two unrelated proteins via alternative reading frames).
-   Resolved deterministically by keeping the alphabetically-first ENSP_ID
-   per gene name -- affects a tiny fraction of proteins, not worth more
-   complex disambiguation. Genes with no matching entry at all (no UniProt
-   FUNCTION annotation was ever fetched for them -- see CLAUDE.md section 11b)
-   are dropped, since Stage 1 has no way to use a protein it has no text
-   representation for.
+Converts an uploaded sample (gene, abundance) into within-sample percentiles keyed by ENSP ID.
 
 Usage:
     uv run python src/preprocessing/normalize_uploaded_sample.py \\

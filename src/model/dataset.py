@@ -11,8 +11,7 @@ from src.embeddings.textual.embed_biobert import strip_gene_name, append_family_
 # protein_train_validation_test.py, ...). Seeds the multi-view random-selection
 # RNG below -- reproducible given the same __getitem__ call order (this project
 # does not use multi-process DataLoader workers, so a single Dataset-owned
-# random.Random instance is sufficient; see CLAUDE.md 11y for why plain set
-# iteration order was NOT sufficient for a similar determinism concern).
+# random.Random instance is sufficient).
 MULTI_VIEW_SEED = 42
 
 
@@ -108,7 +107,7 @@ class ProteomicsDataset(Dataset):
                               "positives to work with in the first place")
 
         if not use_abundance:
-            # Patient-invariant path (Stage 1, see CLAUDE.md section 11):
+            # Patient-invariant path (Stage 1):
             # protein identity/text now comes from a single canonical source
             # (data/full_proteome/), covering all reviewed human UniProt
             # proteins with a valid annotation -- not just the ones measured
