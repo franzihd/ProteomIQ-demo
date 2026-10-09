@@ -1147,8 +1147,8 @@ sidebar, or use the example dataset (LUAD patient 11LU013 from CPTAC).</div>
 """, unsafe_allow_html=True)
 
     with st.container(key="note"):
-        st.caption("**Note:** ProteomIQ is a proof of concept developed for research purposes. "
-                   "Results are exploratory and should not be considered validated biological findings.")
+        st.caption("**Note:** ProteomIQ is a research prototype for hypothesis generation, not a diagnostic tool. "
+                   "See the accompanying thesis for methodology, evaluation, and known limitations.")
 
     st.stop()
 
