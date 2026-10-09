@@ -11,6 +11,8 @@
 > **First start (may take a minute).** Apps on Streamlit Community Cloud go to "sleep" after
 > a while. If you see *"This app has gone to sleep"*, just click the button
 > to wake it up and wait until the model has loaded.
+>
+> **Browser:** best opened in Google Chrome (other browsers may not show the app icon).
 
 ## Quick start
 
